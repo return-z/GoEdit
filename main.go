@@ -1,123 +1,136 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"log"
+	"os"
 )
 
 type RopeNode struct {
-  Left *RopeNode
-  Right *RopeNode
-  Weight int 
-  Data string 
-  TotalWeight int 
+	Left   *RopeNode
+	Right  *RopeNode
+	Weight int
+	Data   string
 }
 
-type stackNode struct {
-  next *stackNode
-  val *RopeNode
+type QueueNode struct {
+	next *QueueNode
+	val  *RopeNode
 }
 
-type Stack struct {
-  len int
-  head *stackNode 
+type Queue struct {
+	len  int
+	head *QueueNode
+	tail *QueueNode
 }
 
-func NewStack() *Stack {
-  return &Stack{}
+func NewQueue() *Queue {
+	return &Queue{}
 }
 
-func (s *Stack) Len() int {
-  return s.len
+func (q *Queue) Len() int {
+	return q.len
 }
 
-func (s *Stack) Peek() *RopeNode {
-  if s.Len() > 0 {
-    return s.head.val
-  }
-  return nil
+func (q *Queue) Front() *RopeNode {
+	if q.len > 0 {
+		nodeVal := q.head.val
+		q.head = q.head.next
+		q.len--
+		return nodeVal
+	}
+	return nil
 }
 
-func (s *Stack) Push(val *RopeNode) {
-  node := &stackNode{val: val}
-  node.next = s.head 
-  s.head = node
-  s.len++
+func (q *Queue) Push(r *RopeNode) {
+	node := &QueueNode{val: r}
+	if q.len > 0 {
+		q.tail.next = node
+	} else {
+		q.head = node
+	}
+	q.tail = node
+	q.len++
 }
-
-func (s *Stack) Pop() *RopeNode {
-  if s.Len() > 0 {
-    node := s.head 
-    s.head = s.head.next
-    s.len--
-    return node.val
-  }
-  return nil
-}
-
 
 func NewRopeBuilder() *RopeNode {
-  return &RopeNode{}
+	return &RopeNode{}
 }
 
-
-func getString(r *RopeNode) string {
-  if r == nil {
-    return ""
-  }
-  leftSubstring := getString(r.Left)
-  leftSubstring = fmt.Sprintf("%s%s", leftSubstring, r.Data)
-  fmt.Println(r.Weight, r.Data)
-  rightSubstring := getString(r.Right)
-  return fmt.Sprintf("%s%s", leftSubstring, rightSubstring)
-}
-
-func BuildTree(r *RopeNode) int {
-  if r == nil {
-    return 0 
-  }
-  leftWeight := BuildTree(r.Left)
-  rightWeight := BuildTree(r.Right)
-  r.TotalWeight = leftWeight + rightWeight + len(r.Data)
-  r.Weight = leftWeight + len(r.Data)
-  return r.TotalWeight
+func chunkizeInput(s string) []string {
+	CHUNK_SIZE := 2
+	var chunks []string
+	for i := 0; i < len(s)-1; i += CHUNK_SIZE {
+		fmt.Println(i)
+		chunks = append(chunks, s[i:min(len(s)-1, i+CHUNK_SIZE)])
+	}
+	fmt.Println("No. of chunks: ", len(chunks))
+	return chunks
 }
 
 func isLeaf(r *RopeNode) bool {
-  return r.Left == nil && r.Right == nil
+	if r.Left == nil && r.Right == nil {
+		return true
+	}
+	return false
 }
 
-func (r *RopeNode) insert (idx int, s string){
-  if r == nil {
-    return 
-  }
-  if isLeaf(r) {
-    if len(r.Data) >= idx {
-      before := r.Data[:idx]
-      after := r.Data[idx:]
-      r.Data = fmt.Sprintf("%s%s%s", before, s, after)
-    }
-  }
-  if idx <= r.Weight {
-    if r.Left != nil {
-      r.Left.insert(idx, s)
-    }
-  } else {
-    if r.Right != nil {
-      r.Right.insert(idx-r.Weight, s)
-    }
-  }
+func insertChunks(r *RopeNode, chunks []string, idx *int) int {
+	if r == nil {
+		return 0
+	}
+	leftWeight := insertChunks(r.Left, chunks, idx)
+	rightWeight := insertChunks(r.Right, chunks, idx)
+	if isLeaf(r) {
+		r.Weight = len(chunks[*idx])
+		r.Data = chunks[*idx]
+		*idx++
+		return r.Weight
+	}
+	r.Weight = leftWeight
+	return leftWeight + rightWeight
+}
 
+func levelOrder(r *RopeNode) {
+	if r == nil {
+		return
+	}
+	q := NewQueue()
+	q.Push(r)
+	for q.len > 0 {
+		qLen := q.len
+		fmt.Println("Queue len ", q.len)
+		for qLen > 0 {
+			node := q.Front()
+			fmt.Printf("%d %s", node.Weight, node.Data)
+			if node.Left != nil {
+				q.Push(node.Left)
+			}
+			if node.Right != nil {
+				q.Push(node.Right)
+			}
+			qLen--
+		}
+	}
 }
 
 func main() {
-  Rope := NewRopeBuilder()
-  root := Rope
-  Rope.Left = &RopeNode{}
-  Rope = Rope.Left
-  Rope.Left = &RopeNode{Data: "Hello "}
-  Rope.Right = &RopeNode{Data: "World!"}
-  BuildTree(root)
-  root.insert(6, "Great")
-  BuildTree(root)
-  getString(root)
+	rope := NewRopeBuilder()
+	reader := bufio.NewReader(os.Stdin)
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		log.Fatal(err)
+	}
+	chunks := chunkizeInput(line)
+	fmt.Println(chunks)
+	root := rope
+	rope.Left = NewRopeBuilder()
+	rope.Left.Left, rope.Left.Right = NewRopeBuilder(), NewRopeBuilder()
+	rope.Left.Left.Left, rope.Left.Left.Right = NewRopeBuilder(), NewRopeBuilder()
+	rope.Left.Right.Left, rope.Left.Right.Right = NewRopeBuilder(), NewRopeBuilder()
+	idx := 0
+	l1 := insertChunks(root, chunks, &idx)
+	fmt.Println(l1)
+	levelOrder(root)
 }
